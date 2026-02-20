@@ -1,0 +1,9 @@
+-e .
+langchain
+python-dotenv
+ipykernel
+langchain_groq
+sentence-transformers
+langchain_community
+pypdf
+faiss-cpu
