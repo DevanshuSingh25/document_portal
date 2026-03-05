@@ -1,0 +1,17 @@
+faiss_db:
+  collection_name: "document_portal"
+
+embedding_model:
+  provider: "huggingface"
+  model_name: "sentence-transformers/all-MiniLM-L6-v2"
+
+retriever:
+  top_k: 10
+
+llm:
+  groq:
+    provider: "groq"
+    model_name: "qwen/qwen3-32b"
+    temperature: 0.7  
+    max_tokens: 2048
+

@@ -11,9 +11,10 @@ logger/custom_logger.py
 prompt/__init__.py
 prompt/prompt_library.py
 src/__init__.py
-src/docanalyzer/__init__.py
-src/doccompare/__init__.py
-src/multidocchat/__init__.py
-src/singledocchat/__init__.py
-utils/LLM_utils.py
+src/document_analyzer/__init__.py
+src/document_compare/__init__.py
+src/multiple_document_chat/__init__.py
+src/single_document_chat/__init__.py
 utils/__init__.py
+utils/config_loader.py
+utils/model_loader.py

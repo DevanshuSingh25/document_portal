@@ -7,3 +7,6 @@ sentence-transformers
 langchain_community
 pypdf
 faiss-cpu
+structlog
+PyMuPDF
+PyYAML

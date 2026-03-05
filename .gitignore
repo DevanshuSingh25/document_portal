@@ -1,2 +1,7 @@
 docportal
 .env
+document_portal.egg-info
+__pycache__/
+logs/
+*.pyc
+test.py
