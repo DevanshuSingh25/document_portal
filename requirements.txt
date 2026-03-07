@@ -10,3 +10,4 @@ faiss-cpu
 structlog
 PyMuPDF
 PyYAML
+pandas

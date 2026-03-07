@@ -12,7 +12,11 @@ prompt/__init__.py
 prompt/prompt_library.py
 src/__init__.py
 src/document_analyzer/__init__.py
+src/document_analyzer/data_analysis.py
+src/document_analyzer/data_ingestion.py
 src/document_compare/__init__.py
+src/document_compare/data_ingestion.py
+src/document_compare/document_comparator.py
 src/multiple_document_chat/__init__.py
 src/single_document_chat/__init__.py
 utils/__init__.py
