@@ -11,3 +11,6 @@ structlog
 PyMuPDF
 PyYAML
 pandas
+streamlit
+langchain-core[tracing]
+pytest
