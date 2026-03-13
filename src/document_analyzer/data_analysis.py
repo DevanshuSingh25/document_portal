@@ -6,10 +6,8 @@ from exception.custom_exception import DocumentPortalException
 from model.models import *
 from langchain_core.output_parsers import JsonOutputParser
 from langchain_classic.output_parsers import OutputFixingParser
-from prompt.prompt_library import PROMPT_REGISTRY
+from prompt.prompt_library import PROMPT_REGISTRY # type: ignore
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-
-
 
 class DocumentAnalyzer:
     """
@@ -26,12 +24,12 @@ class DocumentAnalyzer:
             self.parser = JsonOutputParser(pydantic_object=Metadata)
             self.fixing_parser = OutputFixingParser.from_llm(parser=self.parser, llm=self.llm)
             
-            self.prompt = PROMPT_REGISTRY['document_analysis']
+            self.prompt = PROMPT_REGISTRY["document_analysis"]
             
             self.splitter = RecursiveCharacterTextSplitter(
-                chunk_size=4000,
-                chunk_overlap=500
-            )
+                            chunk_size=4000,
+                            chunk_overlap=500
+                        )
 
             self.log.info("DocumentAnalyzer initialized successfully")
             
@@ -62,10 +60,8 @@ class DocumentAnalyzer:
 
     #     except Exception as e:
     #         self.log.error("Metadata analysis failed", error=str(e))
-    #         raise DocumentPortalException("Metadata extraction failed") from e
-    
-
-
+    #         raise DocumentPortalException("Metadata extraction failed",sys)
+        
     def analyze_document(self, document_text: str) -> dict:
 
         try:
@@ -102,3 +98,4 @@ class DocumentAnalyzer:
         except Exception as e:
             self.log.error("Metadata analysis failed", error=str(e))
             raise DocumentPortalException("Metadata extraction failed") from e
+    
