@@ -6,3 +6,4 @@ logs/
 *.pyc
 test.py
 faiss_index/
+versions.py

@@ -4,19 +4,22 @@ packages = [
     "python-dotenv",
     "ipykernel",
     "langchain_groq",
-    "langchain_google_genai",
-    "langchain-community",
+    "sentence-transformers",
+    "langchain_community",
+    "pypdf",
     "faiss-cpu",
     "structlog",
     "PyMuPDF",
-    "pylint",
-    "langchain-core",
-    "pytest",
+    "PyYAML",
+    "pandas",
     "streamlit",
+    "langchain-core[tracing]",
+    "pytest",
+    "docx2txt",
     "fastapi",
     "uvicorn",
-    "python-multipart",
-    "docx2txt"
+    "python-multipart"
+
 ]
 for pkg in packages:
     try:
