@@ -6,6 +6,7 @@ ipykernel==7.2.0
 langchain_groq==1.1.2       
 sentence-transformers==5.2.2
 langchain_community==0.4.1  
+langchain_huggingface==1.2.0
 pypdf==6.6.2
 faiss-cpu==1.13.2
 structlog==25.5.0
