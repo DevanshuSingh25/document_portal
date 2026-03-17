@@ -8,3 +8,5 @@ env/
 .gitignore
 *.log
 logs/
+data/
+archive/

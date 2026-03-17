@@ -7,3 +7,5 @@ logs/
 test.py
 faiss_index/
 versions.py
+data/
+archive/
