@@ -59,8 +59,8 @@ def test_compare_pdf_files():
          open("test_data/Long_Report_V2.pdf", "rb") as f2:
 
         files = {
-            "reference_file": ("ref.pdf", f1, "application/pdf"),
-            "actual_file": ("actual.pdf", f2, "application/pdf"),
+            "reference": ("ref.pdf", f1, "application/pdf"),
+            "actual": ("actual.pdf", f2, "application/pdf"),
         }
 
         response = client.post("/compare", files=files)
@@ -74,8 +74,8 @@ def test_compare_docx_txt():
          open("test_data/state_of_the_union.txt", "rb") as f2:
 
         files = {
-            "reference_file": ("ref.docx", f1, "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
-            "actual_file": ("actual.txt", f2, "text/plain"),
+            "reference": ("ref.docx", f1, "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+            "actual": ("actual.txt", f2, "text/plain"),
         }
 
         response = client.post("/compare", files=files)
@@ -86,24 +86,25 @@ def test_compare_docx_txt():
 # 8. Chat Index - PDF
 def test_chat_index_pdf():
     with open("test_data/NIPS-2017-attention-is-all-you-need-Paper.pdf", "rb") as f:
-        files = {"file": ("doc.pdf", f, "application/pdf")}
+        files = [("files", ("doc.pdf", f, "application/pdf"))]
         response = client.post("/chat/index", files=files)
 
     assert response.status_code in [200, 400]
 
 
-# -------------------------------
 # 9. Chat Index - DOCX
-# -------------------------------
 def test_chat_index_docx():
     with open("test_data/market_analysis_report.docx", "rb") as f:
-        files = {
-            "file": (
-                "doc.docx",
-                f,
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        files = [
+            (
+                "files",
+                (
+                    "doc.docx",
+                    f,
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                ),
             )
-        }
+        ]
         response = client.post("/chat/index", files=files)
 
     assert response.status_code in [200, 400]
@@ -112,7 +113,7 @@ def test_chat_index_docx():
 # 10. Chat Index - TXT
 def test_chat_index_txt():
     with open("test_data/state_of_the_union.txt", "rb") as f:
-        files = {"file": ("doc.txt", f, "text/plain")}
+        files = [("files", ("doc.txt", f, "text/plain"))]
         response = client.post("/chat/index", files=files)
 
     assert response.status_code in [200, 400]
