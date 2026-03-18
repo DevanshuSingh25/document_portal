@@ -6,7 +6,7 @@ from exception.custom_exception import DocumentPortalException
 from model.models import *
 from langchain_core.output_parsers import JsonOutputParser
 from langchain_classic.output_parsers import OutputFixingParser
-from prompt.prompt_library import PROMPT_REGISTRY # type: ignore
+from prompt.prompt_library import PROMPT_REGISTRY
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 class DocumentAnalyzer:

@@ -9,3 +9,4 @@ faiss_index/
 versions.py
 data/
 archive/
+aws_detail.txt
