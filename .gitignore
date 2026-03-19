@@ -1,0 +1,33 @@
+# Project Specific
+data/
+faiss_index/
+logs/
+archive/
+test.py
+
+# Environments
+.env
+venv/
+.venv/
+env/
+
+# Python & Build
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+
+# Testing & Coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# IDEs & OS
+.idea/
+.vscode/
+.DS_Store
