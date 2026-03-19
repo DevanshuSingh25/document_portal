@@ -6,7 +6,7 @@ from logger.custom_logger import CustomLogger
 
 log = CustomLogger().get_logger(__name__)
 from exception.custom_exception import DocumentPortalException
-
+from utils.config_loader import load_config
 from langchain_groq import ChatGroq
 from langchain_huggingface import HuggingFaceEndpointEmbeddings
 
