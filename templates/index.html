@@ -38,6 +38,7 @@
           </div>
           <div class="actions">
             <button id="btn-analyze" class="btn primary">Run Analysis</button>
+            <button id="btn-stop-analyze" class="btn danger" style="display:none">⏹ Stop</button>
           </div>
         </form>
         <!-- 429 rate-limit banner for analysis -->
@@ -71,6 +72,7 @@
           </div>
           <div class="actions span-2">
             <button id="btn-compare" class="btn primary">Compare</button>
+            <button id="btn-stop-compare" class="btn danger" style="display:none">⏹ Stop</button>
           </div>
         </form>
 
@@ -140,6 +142,7 @@
 
           <div class="actions">
             <button id="btn-build" class="btn primary">Build / Update Index</button>
+            <button id="btn-stop-build" class="btn danger" style="display:none">⏹ Stop</button>
           </div>
         </form>
 
@@ -157,6 +160,7 @@
           </div>
           <div class="actions">
             <button id="btn-ask" class="btn">Send</button>
+            <button id="btn-stop-ask" class="btn danger" style="display:none">⏹ Stop</button>
           </div>
         </form>
 
@@ -178,33 +182,52 @@
   <script>
   const API_BASE = "";
 
-  // ── Rate-limit helper ──────────────────────────────────────────
-  // Parses a "Retrying in X seconds" message from a 429 error detail
-  // and shows it in the given banner element, then hides it after countdown.
+  // ── Active abort controllers (one per section) ─────────────────
+  let abortControllers = { analyze: null, compare: null, build: null, ask: null };
+
+  function startRequest(key, stopBtnId) {
+    // Cancel any existing request for this key
+    if (abortControllers[key]) abortControllers[key].abort();
+    const ctrl = new AbortController();
+    abortControllers[key] = ctrl;
+    document.getElementById(stopBtnId).style.display = "inline-flex";
+    return ctrl;
+  }
+
+  function endRequest(key, stopBtnId) {
+    abortControllers[key] = null;
+    document.getElementById(stopBtnId).style.display = "none";
+  }
+
+  // Wire Stop buttons
+  ["analyze", "compare", "build", "ask"].forEach(key => {
+    const stopId = key === "build" ? "btn-stop-build" : `btn-stop-${key}`;
+    document.getElementById(stopId).addEventListener("click", () => {
+      if (abortControllers[key]) {
+        abortControllers[key].abort();
+        abortControllers[key] = null;
+      }
+      document.getElementById(stopId).style.display = "none";
+    });
+  });
+
+  // ── Rate-limit banner helper ────────────────────────────────────
   function showRateBanner(bannerId, msgId, errorDetail) {
     const banner = document.getElementById(bannerId);
     const msgEl  = document.getElementById(msgId);
     if (!banner || !msgEl) return;
-
-    // Try to extract retry-after seconds from the error message
     const match = (errorDetail || "").match(/in\s+([\d.]+)\s*second/i);
     let seconds = match ? Math.ceil(parseFloat(match[1])) : 30;
-
     banner.style.display = "block";
-
     const tick = () => {
       msgEl.textContent = `⏳ AI rate limit reached. Retrying automatically in ${seconds}s…`;
-      if (seconds <= 0) {
-        banner.style.display = "none";
-        return;
-      }
+      if (seconds <= 0) { banner.style.display = "none"; return; }
       seconds--;
       setTimeout(tick, 1000);
     };
     tick();
   }
 
-  // ── Detect 429 in an error message string ─────────────────────
   function is429(msg) {
     return msg && (
       msg.includes("429") ||
@@ -233,28 +256,27 @@
     document.getElementById("an-rate-banner").style.display = "none";
     if (!file) { out.textContent = "Please upload a file."; return; }
 
+    const ctrl = startRequest("analyze", "btn-stop-analyze");
     try {
       out.textContent = "Running analysis…";
       const fd = new FormData();
       fd.append("file", file);
-
-      const res = await fetch(`${API_BASE}/analyze`, { method: "POST", body: fd });
+      const res = await fetch(`${API_BASE}/analyze`, { method: "POST", body: fd, signal: ctrl.signal });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: res.statusText }));
         const detail = err.detail || `HTTP ${res.status}`;
         if (res.status === 429 || is429(detail)) {
           showRateBanner("an-rate-banner", "an-rate-msg", detail);
           out.textContent = "Rate limit hit — see the countdown banner above.";
-        } else {
-          throw new Error(detail);
-        }
+        } else { throw new Error(detail); }
         return;
       }
       const json = await res.json();
       out.textContent = JSON.stringify(json, null, 2);
     } catch (e) {
-      out.textContent = "Error: " + (e.message || e);
-    }
+      if (e.name === "AbortError") { out.textContent = "⏹ Request cancelled."; }
+      else { out.textContent = "Error: " + (e.message || e); }
+    } finally { endRequest("analyze", "btn-stop-analyze"); }
   });
 
   // ===== COMPARE =====
@@ -263,50 +285,44 @@
     const act   = document.getElementById("cmp-act").files[0];
     const tbody = document.querySelector("#cmp-table tbody");
     document.getElementById("cmp-rate-banner").style.display = "none";
-
     if (!ref || !act) {
       tbody.innerHTML = `<tr><td colspan="2" class="muted center">Upload both files.</td></tr>`;
       return;
     }
-
+    const ctrl = startRequest("compare", "btn-stop-compare");
     try {
       tbody.innerHTML = `<tr><td colspan="2" class="center">Comparing…</td></tr>`;
-
       const fd = new FormData();
       fd.append("reference", ref);
       fd.append("actual", act);
-
-      const res = await fetch(`${API_BASE}/compare`, { method: "POST", body: fd });
+      const res = await fetch(`${API_BASE}/compare`, { method: "POST", body: fd, signal: ctrl.signal });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: res.statusText }));
         const detail = err.detail || `HTTP ${res.status}`;
         if (res.status === 429 || is429(detail)) {
           showRateBanner("cmp-rate-banner", "cmp-rate-msg", detail);
           tbody.innerHTML = `<tr><td colspan="2" class="muted center">Rate limit hit — see countdown above.</td></tr>`;
-        } else {
-          throw new Error(detail);
-        }
+        } else { throw new Error(detail); }
         return;
       }
-
-      const json = await res.json(); // { rows: [...] }
+      const json = await res.json();
       const rows = json.rows || [];
       if (!rows.length) {
         tbody.innerHTML = `<tr><td colspan="2" class="muted center">No differences found.</td></tr>`;
         return;
       }
       tbody.innerHTML = rows.map(r => {
-        // Accept both Section/Changes and Page/Changes key variants
         const section = r.Section ?? r.section ?? r.Page ?? r.page ?? "";
         const chg     = r.Changes ?? r.changes ?? "";
         return `<tr><td>${section}</td><td>${chg}</td></tr>`;
       }).join("");
     } catch (e) {
-      tbody.innerHTML = `<tr><td colspan="2" class="muted center">Error: ${e.message || e}</td></tr>`;
-    }
+      if (e.name === "AbortError") { tbody.innerHTML = `<tr><td colspan="2" class="muted center">⏹ Request cancelled.</td></tr>`; }
+      else { tbody.innerHTML = `<tr><td colspan="2" class="muted center">Error: ${e.message || e}</td></tr>`; }
+    } finally { endRequest("compare", "btn-stop-compare"); }
   });
 
-  // ===== CHAT (index + ask) =====
+  // ===== CHAT INDEX =====
   let currentSession = null;
 
   document.getElementById("btn-build").addEventListener("click", async () => {
@@ -318,12 +334,11 @@
     const overlap   = +document.getElementById("chat-overlap").value || 200;
     const meta      = document.getElementById("chat-meta");
     document.getElementById("chat-rate-banner").style.display = "none";
-
     if (!files.length) { meta.textContent = "Please upload at least one file."; return; }
 
+    const ctrl = startRequest("build", "btn-stop-build");
     try {
       meta.textContent = "Building index…";
-
       const fd = new FormData();
       [...files].forEach(f => fd.append("files", f));
       if (sessionId) fd.append("session_id", sessionId);
@@ -331,66 +346,59 @@
       fd.append("chunk_size", String(chunk));
       fd.append("chunk_overlap", String(overlap));
       fd.append("k", String(k));
-
-      const res = await fetch(`${API_BASE}/chat/index`, { method: "POST", body: fd });
+      const res = await fetch(`${API_BASE}/chat/index`, { method: "POST", body: fd, signal: ctrl.signal });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: res.statusText }));
         const detail = err.detail || `HTTP ${res.status}`;
         if (res.status === 429 || is429(detail)) {
           showRateBanner("chat-rate-banner", "chat-rate-msg", detail);
           meta.textContent = "Rate limit hit — see countdown above.";
-        } else {
-          throw new Error(detail);
-        }
+        } else { throw new Error(detail); }
         return;
       }
       const json = await res.json();
       currentSession = json.session_id || sessionId || null;
       meta.textContent = `Indexed. session=${currentSession || "(none)"}, k=${json.k}`;
     } catch (e) {
-      meta.textContent = "Indexing failed: " + (e.message || e);
-    }
+      if (e.name === "AbortError") { meta.textContent = "⏹ Indexing cancelled."; }
+      else { meta.textContent = "Indexing failed: " + (e.message || e); }
+    } finally { endRequest("build", "btn-stop-build"); }
   });
 
+  // ===== CHAT ASK =====
   document.getElementById("btn-ask").addEventListener("click", async () => {
-    const q        = document.getElementById("chat-q").value.trim();
-    const ans      = document.getElementById("chat-answer");
-    const useSess  = document.getElementById("chat-sessionized").checked;
-    const k        = +document.getElementById("chat-k").value || 5;
+    const q       = document.getElementById("chat-q").value.trim();
+    const ans     = document.getElementById("chat-answer");
+    const useSess = document.getElementById("chat-sessionized").checked;
+    const k       = +document.getElementById("chat-k").value || 5;
     document.getElementById("chat-rate-banner").style.display = "none";
-
     if (!q) { ans.textContent = "Please enter a question."; return; }
-    if (useSess && !currentSession) {
-      ans.textContent = "Build the index first (session-based mode is ON).";
-      return;
-    }
+    if (useSess && !currentSession) { ans.textContent = "Build the index first (session-based mode is ON)."; return; }
 
+    const ctrl = startRequest("ask", "btn-stop-ask");
     try {
       ans.textContent = "Thinking…";
-
       const fd = new FormData();
       fd.append("question", q);
       fd.append("use_session_dirs", useSess ? "true" : "false");
       fd.append("k", String(k));
       if (useSess && currentSession) fd.append("session_id", currentSession);
-
-      const res = await fetch(`${API_BASE}/chat/query`, { method: "POST", body: fd });
+      const res = await fetch(`${API_BASE}/chat/query`, { method: "POST", body: fd, signal: ctrl.signal });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: res.statusText }));
         const detail = err.detail || `HTTP ${res.status}`;
         if (res.status === 429 || is429(detail)) {
           showRateBanner("chat-rate-banner", "chat-rate-msg", detail);
           ans.textContent = "Rate limit hit — see countdown above. Try again after it resets.";
-        } else {
-          throw new Error(detail);
-        }
+        } else { throw new Error(detail); }
         return;
       }
       const json = await res.json();
       ans.textContent = json.answer || "No answer.";
     } catch (e) {
-      ans.textContent = "Query failed: " + (e.message || e);
-    }
+      if (e.name === "AbortError") { ans.textContent = "⏹ Request cancelled."; }
+      else { ans.textContent = "Query failed: " + (e.message || e); }
+    } finally { endRequest("ask", "btn-stop-ask"); }
   });
 </script>
 

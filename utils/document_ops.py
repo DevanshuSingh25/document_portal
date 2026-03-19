@@ -1,138 +1,110 @@
 from __future__ import annotations
-import os
-import sys
-import json
-import uuid
-import hashlib
-import shutil
+import sqlite3
+import pandas as pd
 from pathlib import Path
-from datetime import datetime, timezone
-from typing import Iterable, List, Optional, Dict, Any
+from typing import Iterable, List
 
-import fitz  # PyMuPDF
+from pptx import Presentation
 from langchain_core.documents import Document
-from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import (
-    PyPDFLoader,
-    Docx2txtLoader,
-    TextLoader,
-    CSVLoader,
+    PyPDFLoader, Docx2txtLoader, TextLoader,
     UnstructuredMarkdownLoader,
 )
-from langchain_community.vectorstores import FAISS
 
-from utils.model_loader import ModelLoader
 from logger.custom_logger import CustomLogger
 from exception.custom_exception import DocumentPortalException
 
 log = CustomLogger().get_logger(__name__)
 
-# ─────────────────────────────────────────────────────────────────
-# Supported file extensions across the whole application.
-# Add new extensions here and implement their loader below.
-# ─────────────────────────────────────────────────────────────────
 SUPPORTED_EXTENSIONS = {
-    ".pdf",
-    ".docx",
-    ".txt",
-    ".ppt",
-    ".pptx",
-    ".md",
-    ".xlsx",
-    ".csv",
-    ".db",
-    ".sqlite",
+    ".pdf", ".docx", ".txt", ".md",
+    ".ppt", ".pptx",
+    ".xlsx", ".csv",
+    ".db", ".sqlite",
 }
 
 
-def load_documents(paths: Iterable[Path]) -> List[Document]:
-    """
-    Load documents from a list of file paths.
-    Routes each file to the appropriate loader based on its extension.
-    Returns a flat list of LangChain Document objects.
-    """
-    docs: List[Document] = []
-    paths = list(paths)
-    log.info("load_documents: starting", file_count=len(paths))
+# ── Inline loaders ──────────────────────────────────────────────
 
-    for p in paths:
-        ext = p.suffix.lower()
-        log.info("load_documents: processing file", file=str(p), extension=ext)
-
-        try:
-            if ext == ".pdf":
-                log.debug("load_documents: using PyPDFLoader", file=str(p))
-                loader = PyPDFLoader(str(p))
-                loaded = loader.load()
-
-            elif ext == ".docx":
-                log.debug("load_documents: using Docx2txtLoader", file=str(p))
-                loader = Docx2txtLoader(str(p))
-                loaded = loader.load()
-
-            elif ext == ".txt":
-                log.debug("load_documents: using TextLoader", file=str(p))
-                loader = TextLoader(str(p), encoding="utf-8")
-                loaded = loader.load()
-
-            elif ext == ".csv":
-                log.debug("load_documents: using CSVLoader", file=str(p))
-                loader = CSVLoader(str(p), encoding="utf-8")
-                loaded = loader.load()
-
-            elif ext == ".md":
-                log.debug("load_documents: using UnstructuredMarkdownLoader", file=str(p))
-                loader = UnstructuredMarkdownLoader(str(p))
-                loaded = loader.load()
-
-            elif ext in {".ppt", ".pptx"}:
-                log.debug("load_documents: using PPT connector", file=str(p))
-                from connectors.ppt_connector import load_ppt
-                loaded = load_ppt(p)
-
-            elif ext == ".xlsx":
-                log.debug("load_documents: using XLSX connector", file=str(p))
-                from connectors.xlsx_connector import load_xlsx
-                loaded = load_xlsx(p)
-
-            elif ext in {".db", ".sqlite"}:
-                log.debug("load_documents: using SQL connector", file=str(p))
-                from connectors.sql_connector import load_sqlite
-                loaded = load_sqlite(p)
-
-            else:
-                log.warning(
-                    "load_documents: unsupported extension — skipping",
-                    file=str(p),
-                    extension=ext,
-                )
-                continue
-
-            log.info(
-                "load_documents: file loaded successfully",
-                file=str(p),
-                documents_produced=len(loaded),
-            )
-            docs.extend(loaded)
-
-        except DocumentPortalException:
-            # Connector already logged the error — re-raise to halt the request
-            raise
-        except Exception as e:
-            log.error(
-                "load_documents: unexpected error loading file",
-                file=str(p),
-                error=str(e),
-            )
-            raise DocumentPortalException(f"Error loading {p.name}", e) from e
-
-    log.info(
-        "load_documents: all files processed",
-        total_documents=len(docs),
-        files_processed=len(paths),
-    )
+def _load_pptx(path: Path) -> List[Document]:
+    docs = []
+    for i, slide in enumerate(Presentation(str(path)).slides):
+        text = "\n".join(shape.text for shape in slide.shapes if hasattr(shape, "text")).strip()
+        if text:
+            docs.append(Document(page_content=text, metadata={"source": str(path), "slide": i + 1}))
+    log.info("PPT loaded", file=path.name, slides=len(docs))
     return docs
 
+
+def _load_xlsx(path: Path) -> List[Document]:
+    docs = []
+    for sheet, df in pd.read_excel(path, sheet_name=None).items():
+        content = df.to_string(index=False)
+        if content.strip():
+            docs.append(Document(page_content=content, metadata={"source": str(path), "sheet": sheet}))
+    log.info("XLSX loaded", file=path.name, sheets=len(docs))
+    return docs
+
+
+def _load_csv(path: Path) -> List[Document]:
+    content = pd.read_csv(path).to_string(index=False)
+    log.info("CSV loaded", file=path.name)
+    return [Document(page_content=content, metadata={"source": str(path)})]
+
+
+def _load_sqlite(path: Path) -> List[Document]:
+    docs = []
+    conn = sqlite3.connect(str(path))
+    tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table';").fetchall()
+    for (table,) in tables:
+        df = pd.read_sql_query(f'SELECT * FROM "{table}"', conn)
+        if not df.empty:
+            docs.append(Document(
+                page_content=df.to_string(index=False),
+                metadata={"source": str(path), "table": table},
+            ))
+    conn.close()
+    log.info("SQLite loaded", file=path.name, tables=len(docs))
+    return docs
+
+
+# ── Main loader ─────────────────────────────────────────────────
+
+def load_documents(paths: Iterable[Path]) -> List[Document]:
+    docs: List[Document] = []
+    try:
+        for p in paths:
+            ext = p.suffix.lower()
+            if ext == ".pdf":
+                docs.extend(PyPDFLoader(str(p)).load())
+            elif ext == ".docx":
+                docs.extend(Docx2txtLoader(str(p)).load())
+            elif ext == ".txt":
+                docs.extend(TextLoader(str(p), encoding="utf-8").load())
+            elif ext == ".md":
+                docs.extend(UnstructuredMarkdownLoader(str(p)).load())
+            elif ext in {".ppt", ".pptx"}:
+                docs.extend(_load_pptx(p))
+            elif ext == ".xlsx":
+                docs.extend(_load_xlsx(p))
+            elif ext == ".csv":
+                docs.extend(_load_csv(p))
+            elif ext in {".db", ".sqlite"}:
+                docs.extend(_load_sqlite(p))
+            else:
+                log.warning("Unsupported extension skipped", file=str(p))
+                continue
+            log.info("File loaded", file=p.name)
+        log.info("Documents loaded", count=len(docs))
+        return docs
+    except DocumentPortalException:
+        raise
+    except Exception as e:
+        log.error("Failed loading documents", error=str(e))
+        raise DocumentPortalException("Error loading documents", e) from e
+
+
+# ── Concatenation helpers ────────────────────────────────────────
 
 def concat_for_analysis(docs: List[Document]) -> str:
     parts = []
@@ -141,7 +113,6 @@ def concat_for_analysis(docs: List[Document]) -> str:
         parts.append(f"\n--- SOURCE: {src} ---\n{d.page_content}")
     return "\n".join(parts)
 
+
 def concat_for_comparison(ref_docs: List[Document], act_docs: List[Document]) -> str:
-    left = concat_for_analysis(ref_docs)
-    right = concat_for_analysis(act_docs)
-    return f"<<REFERENCE_DOCUMENTS>>\n{left}\n\n<<ACTUAL_DOCUMENTS>>\n{right}"
+    return f"<<REFERENCE_DOCUMENTS>>\n{concat_for_analysis(ref_docs)}\n\n<<ACTUAL_DOCUMENTS>>\n{concat_for_analysis(act_docs)}"

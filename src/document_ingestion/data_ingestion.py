@@ -7,12 +7,11 @@ import hashlib
 import shutil
 from pathlib import Path
 from datetime import datetime, timezone
-from typing import Iterable, List, Optional, Dict, Any
+from typing import Iterable, List, Optional
 
-import fitz  # PyMuPDF
+import fitz
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader
 from langchain_community.vectorstores import FAISS
 
 from utils.model_loader import ModelLoader
@@ -20,14 +19,7 @@ from logger.custom_logger import CustomLogger
 from exception.custom_exception import DocumentPortalException
 
 from utils.file_io import _session_id, save_uploaded_files
-from utils.document_ops import load_documents, concat_for_analysis, concat_for_comparison
-
-SUPPORTED_EXTENSIONS = {
-    ".pdf", ".docx", ".txt",
-    ".ppt", ".pptx", ".md",
-    ".xlsx", ".csv",
-    ".db", ".sqlite",
-}
+from utils.document_ops import load_documents, concat_for_analysis, concat_for_comparison, SUPPORTED_EXTENSIONS
 
 # FAISS Manager (load-or-create)
 class FaissManager:
@@ -354,8 +346,25 @@ class DocumentComparator:
             ref_text = self.read_pdf(ref_path)
             act_text = self.read_pdf(act_path)
 
+            # ── Per-document size cap ─────────────────────────────────────────
+            # Truncate *before* MD5 hashing and combining so the text splitter
+            # in the comparator never has to split millions of characters.
+            MAX_PER_DOC = 10_000
+            if len(ref_text) > MAX_PER_DOC:
+                self.log.warning(
+                    "combine_documents: reference document truncated",
+                    original=len(ref_text), cap=MAX_PER_DOC,
+                )
+                ref_text = ref_text[:MAX_PER_DOC] + f"\n\n[... truncated to {MAX_PER_DOC} chars ...]"
+            if len(act_text) > MAX_PER_DOC:
+                self.log.warning(
+                    "combine_documents: actual document truncated",
+                    original=len(act_text), cap=MAX_PER_DOC,
+                )
+                act_text = act_text[:MAX_PER_DOC] + f"\n\n[... truncated to {MAX_PER_DOC} chars ...]"
+            # ─────────────────────────────────────────────────────────────────
+
             # ── Identical-content guard ──────────────────────────────────────
-            # MD5 of normalised whitespace to catch trivially identical uploads
             ref_hash = hashlib.md5(ref_text.strip().encode()).hexdigest()
             act_hash = hashlib.md5(act_text.strip().encode()).hexdigest()
 

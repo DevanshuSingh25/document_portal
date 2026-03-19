@@ -144,6 +144,12 @@ input[type="file"]:hover{border-color:#38455e; background:#0c131d}
   box-shadow:0 6px 22px rgba(78,162,255,.25);
 }
 .btn.primary:hover{filter:brightness(1.05)}
+.btn.danger{
+  background:linear-gradient(135deg, #ff5e5e 0%, #d63031 100%);
+  border:0; color:#fff; font-weight:600;
+  box-shadow:0 4px 16px rgba(214,48,49,.3);
+}
+.btn.danger:hover{filter:brightness(1.08)}
 
 /* ====== RESULTS ====== */
 .result-block{margin-top:18px}
