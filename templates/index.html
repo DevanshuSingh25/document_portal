@@ -4,7 +4,6 @@
   <meta charset="utf-8" />
   <title>Document Portal</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- Google Fonts for classy look -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -28,17 +27,23 @@
     <section id="tab-analysis" class="tab-panel active">
       <div class="card">
         <h2>🔎 Analyze a Document</h2>
-        <p class="muted">Upload a PDF and get structured analysis.</p>
+        <p class="muted">Upload a document and get structured analysis.</p>
         <form id="form-analyze" class="form-grid" onsubmit="return false;">
           <div class="field">
-            <label for="an-file">Upload PDF</label>
-            <input id="an-file" type="file" accept=".pdf" required />
-            <small class="help">Only .pdf files</small>
+            <label for="an-file">Upload Document</label>
+            <input id="an-file" type="file"
+              accept=".pdf,.docx,.txt,.ppt,.pptx,.md,.xlsx,.csv,.db,.sqlite"
+              required />
+            <small class="help">Supported: PDF, DOCX, TXT, PPT/PPTX, MD, XLSX, CSV, DB/SQLite</small>
           </div>
           <div class="actions">
             <button id="btn-analyze" class="btn primary">Run Analysis</button>
           </div>
         </form>
+        <!-- 429 rate-limit banner for analysis -->
+        <div id="an-rate-banner" class="rate-banner" style="display:none;">
+          ⏳ <span id="an-rate-msg">AI rate limit reached. Please wait…</span>
+        </div>
         <div id="an-result" class="result-block">
           <h3>Result</h3>
           <pre class="code" id="an-json">Waiting for analysis…</pre>
@@ -50,27 +55,36 @@
     <section id="tab-compare" class="tab-panel">
       <div class="card">
         <h2>🆚 Compare Two Documents</h2>
-        <p class="muted">Upload a reference PDF and an actual PDF to see page-wise differences.</p>
+        <p class="muted">Upload a reference document and an actual document to see differences.</p>
         <form id="form-compare" class="form-grid-2" onsubmit="return false;">
           <div class="field">
-            <label for="cmp-ref">Reference PDF</label>
-            <input id="cmp-ref" type="file" accept=".pdf" required />
+            <label for="cmp-ref">Reference Document</label>
+            <input id="cmp-ref" type="file"
+              accept=".pdf,.docx,.txt,.ppt,.pptx,.md,.xlsx,.csv,.db,.sqlite"
+              required />
           </div>
           <div class="field">
-            <label for="cmp-act">Actual PDF</label>
-            <input id="cmp-act" type="file" accept=".pdf" required />
+            <label for="cmp-act">Actual Document</label>
+            <input id="cmp-act" type="file"
+              accept=".pdf,.docx,.txt,.ppt,.pptx,.md,.xlsx,.csv,.db,.sqlite"
+              required />
           </div>
           <div class="actions span-2">
             <button id="btn-compare" class="btn primary">Compare</button>
           </div>
         </form>
 
+        <!-- 429 rate-limit banner for compare -->
+        <div id="cmp-rate-banner" class="rate-banner" style="display:none;">
+          ⏳ <span id="cmp-rate-msg">AI rate limit reached. Please wait…</span>
+        </div>
+
         <div id="cmp-result" class="result-block">
           <h3>Comparison Result</h3>
           <div class="table-wrap">
             <table id="cmp-table">
               <thead>
-                <tr><th>Page</th><th>Changes</th></tr>
+                <tr><th>Section</th><th>Changes</th></tr>
               </thead>
               <tbody>
                 <tr><td colspan="2" class="muted center">No data yet.</td></tr>
@@ -85,13 +99,14 @@
     <section id="tab-chat" class="tab-panel">
       <div class="card">
         <h2>💬 Chat with your Documents</h2>
-        <p class="muted">Upload PDF/DOCX/TXT; we’ll index to FAISS and enable RAG chat.</p>
+        <p class="muted">Upload documents; we'll index them to FAISS and enable RAG chat.</p>
 
         <form id="form-chat-index" class="form-grid" onsubmit="return false;">
           <div class="field">
             <label for="chat-files">Upload files</label>
-            <input id="chat-files" type="file" multiple accept=".pdf,.docx,.txt" />
-            <small class="help">You can select multiple files.</small>
+            <input id="chat-files" type="file" multiple
+              accept=".pdf,.docx,.txt,.ppt,.pptx,.md,.xlsx,.csv,.db,.sqlite" />
+            <small class="help">Supported: PDF, DOCX, TXT, PPT/PPTX, MD, XLSX, CSV, DB/SQLite. Multiple files allowed.</small>
           </div>
 
           <div class="grid-3">
@@ -128,6 +143,11 @@
           </div>
         </form>
 
+        <!-- 429 rate-limit banner for chat -->
+        <div id="chat-rate-banner" class="rate-banner" style="display:none;">
+          ⏳ <span id="chat-rate-msg">AI rate limit reached. Please wait…</span>
+        </div>
+
         <div class="divider"></div>
 
         <form id="form-chat-ask" class="form-grid" onsubmit="return false;">
@@ -152,14 +172,49 @@
 
   <footer class="app-footer">
     <div>© Document Portal • Demo UI</div>
-    <div class="tiny">Frontend only – hook to your FastAPI later.</div>
+    <div class="tiny">Powered by FastAPI + LangChain + FAISS</div>
   </footer>
 
   <script>
-  // Base URL for API (same origin when opened via FastAPI)
   const API_BASE = "";
 
-  // Tab switching (unchanged)
+  // ── Rate-limit helper ──────────────────────────────────────────
+  // Parses a "Retrying in X seconds" message from a 429 error detail
+  // and shows it in the given banner element, then hides it after countdown.
+  function showRateBanner(bannerId, msgId, errorDetail) {
+    const banner = document.getElementById(bannerId);
+    const msgEl  = document.getElementById(msgId);
+    if (!banner || !msgEl) return;
+
+    // Try to extract retry-after seconds from the error message
+    const match = (errorDetail || "").match(/in\s+([\d.]+)\s*second/i);
+    let seconds = match ? Math.ceil(parseFloat(match[1])) : 30;
+
+    banner.style.display = "block";
+
+    const tick = () => {
+      msgEl.textContent = `⏳ AI rate limit reached. Retrying automatically in ${seconds}s…`;
+      if (seconds <= 0) {
+        banner.style.display = "none";
+        return;
+      }
+      seconds--;
+      setTimeout(tick, 1000);
+    };
+    tick();
+  }
+
+  // ── Detect 429 in an error message string ─────────────────────
+  function is429(msg) {
+    return msg && (
+      msg.includes("429") ||
+      msg.toLowerCase().includes("rate limit") ||
+      msg.toLowerCase().includes("too many requests") ||
+      msg.toLowerCase().includes("retrying")
+    );
+  }
+
+  // Tab switching
   const tabs = document.querySelectorAll(".tab-btn");
   const panels = document.querySelectorAll(".tab-panel");
   tabs.forEach(btn => {
@@ -175,17 +230,25 @@
   document.getElementById("btn-analyze").addEventListener("click", async () => {
     const file = document.getElementById("an-file").files[0];
     const out  = document.getElementById("an-json");
-    if (!file) { out.textContent = "Please upload a PDF."; return; }
+    document.getElementById("an-rate-banner").style.display = "none";
+    if (!file) { out.textContent = "Please upload a file."; return; }
 
     try {
       out.textContent = "Running analysis…";
       const fd = new FormData();
-      fd.append("file", file); // <-- must be 'file' to match FastAPI
+      fd.append("file", file);
 
       const res = await fetch(`${API_BASE}/analyze`, { method: "POST", body: fd });
       if (!res.ok) {
-        const err = await res.json().catch(()=>({detail:res.statusText}));
-        throw new Error(err.detail || `HTTP ${res.status}`);
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        const detail = err.detail || `HTTP ${res.status}`;
+        if (res.status === 429 || is429(detail)) {
+          showRateBanner("an-rate-banner", "an-rate-msg", detail);
+          out.textContent = "Rate limit hit — see the countdown banner above.";
+        } else {
+          throw new Error(detail);
+        }
+        return;
       }
       const json = await res.json();
       out.textContent = JSON.stringify(json, null, 2);
@@ -199,9 +262,10 @@
     const ref   = document.getElementById("cmp-ref").files[0];
     const act   = document.getElementById("cmp-act").files[0];
     const tbody = document.querySelector("#cmp-table tbody");
+    document.getElementById("cmp-rate-banner").style.display = "none";
 
     if (!ref || !act) {
-      tbody.innerHTML = `<tr><td colspan="2" class="muted center">Upload both PDFs.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="2" class="muted center">Upload both files.</td></tr>`;
       return;
     }
 
@@ -209,14 +273,22 @@
       tbody.innerHTML = `<tr><td colspan="2" class="center">Comparing…</td></tr>`;
 
       const fd = new FormData();
-      fd.append("reference", ref); // <-- must be 'reference'
-      fd.append("actual", act);    // <-- must be 'actual'
+      fd.append("reference", ref);
+      fd.append("actual", act);
 
       const res = await fetch(`${API_BASE}/compare`, { method: "POST", body: fd });
       if (!res.ok) {
-        const err = await res.json().catch(()=>({detail:res.statusText}));
-        throw new Error(err.detail || `HTTP ${res.status}`);
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        const detail = err.detail || `HTTP ${res.status}`;
+        if (res.status === 429 || is429(detail)) {
+          showRateBanner("cmp-rate-banner", "cmp-rate-msg", detail);
+          tbody.innerHTML = `<tr><td colspan="2" class="muted center">Rate limit hit — see countdown above.</td></tr>`;
+        } else {
+          throw new Error(detail);
+        }
+        return;
       }
+
       const json = await res.json(); // { rows: [...] }
       const rows = json.rows || [];
       if (!rows.length) {
@@ -224,9 +296,10 @@
         return;
       }
       tbody.innerHTML = rows.map(r => {
-        const page = r.Page ?? r.page ?? "";
-        const chg  = r.Changes ?? r.changes ?? "";
-        return `<tr><td>${page}</td><td>${chg}</td></tr>`;
+        // Accept both Section/Changes and Page/Changes key variants
+        const section = r.Section ?? r.section ?? r.Page ?? r.page ?? "";
+        const chg     = r.Changes ?? r.changes ?? "";
+        return `<tr><td>${section}</td><td>${chg}</td></tr>`;
       }).join("");
     } catch (e) {
       tbody.innerHTML = `<tr><td colspan="2" class="muted center">Error: ${e.message || e}</td></tr>`;
@@ -244,6 +317,7 @@
     const chunk     = +document.getElementById("chat-chunk").value || 1000;
     const overlap   = +document.getElementById("chat-overlap").value || 200;
     const meta      = document.getElementById("chat-meta");
+    document.getElementById("chat-rate-banner").style.display = "none";
 
     if (!files.length) { meta.textContent = "Please upload at least one file."; return; }
 
@@ -251,7 +325,7 @@
       meta.textContent = "Building index…";
 
       const fd = new FormData();
-      [...files].forEach(f => fd.append("files", f)); // <-- must be 'files'
+      [...files].forEach(f => fd.append("files", f));
       if (sessionId) fd.append("session_id", sessionId);
       fd.append("use_session_dirs", useSess ? "true" : "false");
       fd.append("chunk_size", String(chunk));
@@ -260,10 +334,17 @@
 
       const res = await fetch(`${API_BASE}/chat/index`, { method: "POST", body: fd });
       if (!res.ok) {
-        const err = await res.json().catch(()=>({detail:res.statusText}));
-        throw new Error(err.detail || `HTTP ${res.status}`);
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        const detail = err.detail || `HTTP ${res.status}`;
+        if (res.status === 429 || is429(detail)) {
+          showRateBanner("chat-rate-banner", "chat-rate-msg", detail);
+          meta.textContent = "Rate limit hit — see countdown above.";
+        } else {
+          throw new Error(detail);
+        }
+        return;
       }
-      const json = await res.json(); // { session_id, k, use_session_dirs }
+      const json = await res.json();
       currentSession = json.session_id || sessionId || null;
       meta.textContent = `Indexed. session=${currentSession || "(none)"}, k=${json.k}`;
     } catch (e) {
@@ -276,6 +357,7 @@
     const ans      = document.getElementById("chat-answer");
     const useSess  = document.getElementById("chat-sessionized").checked;
     const k        = +document.getElementById("chat-k").value || 5;
+    document.getElementById("chat-rate-banner").style.display = "none";
 
     if (!q) { ans.textContent = "Please enter a question."; return; }
     if (useSess && !currentSession) {
@@ -294,10 +376,17 @@
 
       const res = await fetch(`${API_BASE}/chat/query`, { method: "POST", body: fd });
       if (!res.ok) {
-        const err = await res.json().catch(()=>({detail:res.statusText}));
-        throw new Error(err.detail || `HTTP ${res.status}`);
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        const detail = err.detail || `HTTP ${res.status}`;
+        if (res.status === 429 || is429(detail)) {
+          showRateBanner("chat-rate-banner", "chat-rate-msg", detail);
+          ans.textContent = "Rate limit hit — see countdown above. Try again after it resets.";
+        } else {
+          throw new Error(detail);
+        }
+        return;
       }
-      const json = await res.json(); // { answer, ... }
+      const json = await res.json();
       ans.textContent = json.answer || "No answer.";
     } catch (e) {
       ans.textContent = "Query failed: " + (e.message || e);

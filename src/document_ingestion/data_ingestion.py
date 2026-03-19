@@ -22,7 +22,12 @@ from exception.custom_exception import DocumentPortalException
 from utils.file_io import _session_id, save_uploaded_files
 from utils.document_ops import load_documents, concat_for_analysis, concat_for_comparison
 
-SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".txt"}
+SUPPORTED_EXTENSIONS = {
+    ".pdf", ".docx", ".txt",
+    ".ppt", ".pptx", ".md",
+    ".xlsx", ".csv",
+    ".db", ".sqlite",
+}
 
 # FAISS Manager (load-or-create)
 class FaissManager:
@@ -244,10 +249,16 @@ class DocumentComparator:
 
     def save_uploaded_files(self, reference_file, actual_file):
         try:
-            ref_path = self.session_path / reference_file.name
-            act_path = self.session_path / actual_file.name
+            ref_name = Path(reference_file.name).name
+            act_name = Path(actual_file.name).name
+
+            # ── Prefix with reference_/actual_ so same-name files never overwrite ──
+            ref_path = self.session_path / f"reference_{ref_name}"
+            act_path = self.session_path / f"actual_{act_name}"
+
             for fobj, out in ((reference_file, ref_path), (actual_file, act_path)):
-                ext = Path(fobj.name).suffix.lower()
+                orig_name = Path(fobj.name).name
+                ext = Path(orig_name).suffix.lower()
                 if ext not in SUPPORTED_EXTENSIONS:
                     raise ValueError(
                         f"Invalid file type '{ext}'. Supported types: {', '.join(sorted(SUPPORTED_EXTENSIONS))}"
@@ -257,7 +268,13 @@ class DocumentComparator:
                         f.write(fobj.read())
                     else:
                         f.write(fobj.getbuffer())
-            self.log.info("Files saved", reference=str(ref_path), actual=str(act_path), session=self.session_id)
+
+            self.log.info(
+                "Files saved with role prefixes",
+                reference=str(ref_path),
+                actual=str(act_path),
+                session=self.session_id,
+            )
             return ref_path, act_path
         except Exception as e:
             self.log.error("Error saving files", error=str(e), session=self.session_id)
@@ -292,18 +309,90 @@ class DocumentComparator:
             raise DocumentPortalException("Error reading document", e) from e
 
     def combine_documents(self) -> str:
+        """
+        Build the combined text that is sent to the comparator LLM.
+        - Looks for files prefixed with 'reference_' and 'actual_' in the session folder.
+        - Clearly labels each section so the LLM always knows which is which.
+        - If both documents are byte-for-byte identical, returns a sentinel string
+          that bypasses the LLM entirely and returns "No differences found."
+        """
+        import hashlib
+
         try:
-            doc_parts = []
-            for file in sorted(self.session_path.iterdir()):
-                if file.is_file() and file.suffix.lower() in SUPPORTED_EXTENSIONS:
-                    content = self.read_pdf(file)
-                    doc_parts.append(f"Document: {file.name}\n{content}")
-            combined_text = "\n\n".join(doc_parts)
-            self.log.info("Documents combined", count=len(doc_parts), session=self.session_id)
+            # Find the reference and actual files in this session folder
+            all_files = list(self.session_path.iterdir())
+            ref_files = [f for f in all_files if f.is_file() and f.name.startswith("reference_")]
+            act_files = [f for f in all_files if f.is_file() and f.name.startswith("actual_")]
+
+            if not ref_files or not act_files:
+                # Fallback: treat first file as reference, second as actual (sorted order)
+                valid = sorted(
+                    f for f in all_files
+                    if f.is_file() and f.suffix.lower() in SUPPORTED_EXTENSIONS
+                )
+                if len(valid) < 2:
+                    raise ValueError(
+                        "Session folder must contain exactly 2 documents to compare."
+                    )
+                ref_files = [valid[0]]
+                act_files = [valid[1]]
+                self.log.warning(
+                    "combine_documents: no role-prefixed files found — using sorted fallback",
+                    reference=str(ref_files[0]),
+                    actual=str(act_files[0]),
+                )
+
+            ref_path = ref_files[0]
+            act_path = act_files[0]
+
+            self.log.info(
+                "combine_documents: reading files",
+                reference=ref_path.name,
+                actual=act_path.name,
+            )
+
+            ref_text = self.read_pdf(ref_path)
+            act_text = self.read_pdf(act_path)
+
+            # ── Identical-content guard ──────────────────────────────────────
+            # MD5 of normalised whitespace to catch trivially identical uploads
+            ref_hash = hashlib.md5(ref_text.strip().encode()).hexdigest()
+            act_hash = hashlib.md5(act_text.strip().encode()).hexdigest()
+
+            if ref_hash == act_hash:
+                self.log.info(
+                    "combine_documents: both documents are identical (hash match) "
+                    "— returning sentinel",
+                    reference=ref_path.name,
+                    actual=act_path.name,
+                )
+                return "__IDENTICAL_DOCUMENTS__"
+            # ────────────────────────────────────────────────────────────────
+
+            combined_text = (
+                "<<REFERENCE DOCUMENT>>\n"
+                f"Filename: {ref_path.name.replace('reference_', '')}\n\n"
+                f"{ref_text}\n\n"
+                "<<ACTUAL DOCUMENT>>\n"
+                f"Filename: {act_path.name.replace('actual_', '')}\n\n"
+                f"{act_text}"
+            )
+
+            self.log.info(
+                "combine_documents: documents combined",
+                ref_chars=len(ref_text),
+                act_chars=len(act_text),
+                combined_chars=len(combined_text),
+                session=self.session_id,
+            )
             return combined_text
+
+        except DocumentPortalException:
+            raise
         except Exception as e:
-            self.log.error("Error combining documents", error=str(e), session=self.session_id)
+            self.log.error("combine_documents: error", error=str(e), session=self.session_id)
             raise DocumentPortalException("Error combining documents", e) from e
+
 
     def clean_old_sessions(self, keep_latest: int = 3):
         try:

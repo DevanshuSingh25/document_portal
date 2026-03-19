@@ -70,8 +70,26 @@ async def compare_documents(reference: UploadFile = File(...), actual: UploadFil
         )
         _ = ref_path, act_path
         combined_text = dc.combine_documents()
+
+        # Short-circuit: if both documents are identical, skip the LLM entirely
+        if combined_text == "__IDENTICAL_DOCUMENTS__":
+            return {
+                "rows": [],
+                "session_id": dc.session_id,
+                "message": "Documents are identical — no differences found.",
+            }
+
         comp = DocumentComparatorLLM()
         df = comp.compare_documents(combined_text)
+        # Normalise column names: Section/Changes always
+        rename_map = {}
+        for col in df.columns:
+            if col.lower() in ("page", "section"):
+                rename_map[col] = "Section"
+            elif col.lower() == "changes":
+                rename_map[col] = "Changes"
+        if rename_map:
+            df = df.rename(columns=rename_map)
         return {"rows": df.to_dict(orient="records"), "session_id": dc.session_id}
     except HTTPException:
         raise

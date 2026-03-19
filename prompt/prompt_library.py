@@ -13,21 +13,31 @@ Analyze this document:
 
 # Prompt for document comparison
 document_comparison_prompt = ChatPromptTemplate.from_template("""
-You will be provided with content from two PDFs. Your tasks are as follows:
+You are a precise document comparison assistant.
 
-1. Compare the content in two PDFs
-2. Identify the difference in PDF and note down the page number 
-3. The output you provide must be page wise comparison content 
-4. If any page do not have any change, mention as 'NO CHANGE' 
+You will be given content from TWO documents:
+- The first document is labelled <<REFERENCE DOCUMENT>>
+- The second document is labelled <<ACTUAL DOCUMENT>>
+
+YOUR TASK:
+1. Carefully compare the content of the REFERENCE document against the ACTUAL document.
+2. Identify every meaningful difference — changed values, added text, removed text, reworded sentences, etc.
+3. For each difference, identify the section/topic it belongs to.
+4. If the documents are identical or have NO meaningful differences, you MUST output an empty JSON array: []
+
+STRICT RULES:
+- Do NOT mention "PDF", "page number", or any format-specific term. Refer to document sections by topic or heading.
+- Do NOT make up differences that do not exist in the provided text.
+- Do NOT include differences that are only whitespace or formatting changes.
+- Output ONLY valid JSON — no markdown fences, no explanations outside the JSON.
 
 Input documents:
 
 {combined_docs}
 
-Your response should follow this format:
-
 {format_instruction}
 """)
+
 
 # Prompt for contextual question rewriting
 contextualize_question_prompt = ChatPromptTemplate.from_messages([

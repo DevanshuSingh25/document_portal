@@ -9,7 +9,11 @@ ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 
 # Install OS dependencies
-RUN apt-get update && apt-get install -y build-essential poppler-utils && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    poppler-utils \
+    libmagic1 \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements
 COPY requirements.txt .

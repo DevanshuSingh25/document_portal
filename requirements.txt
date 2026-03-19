@@ -21,3 +21,10 @@ fastapi==0.135.1
 uvicorn==0.41.0
 python-multipart==0.0.22
 cfn-lint
+
+# ── New connector dependencies ──────────────────────────────────
+python-pptx==1.0.2
+openpyxl==3.1.5
+sqlalchemy==2.0.41
+unstructured==0.17.2
+markdown==3.7
