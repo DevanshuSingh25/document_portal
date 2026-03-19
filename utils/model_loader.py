@@ -2,8 +2,9 @@ import os
 import sys
 import json
 from dotenv import load_dotenv
-from logger import GLOBAL_LOGGER as log
 from logger.custom_logger import CustomLogger
+
+log = CustomLogger().get_logger(__name__)
 from exception.custom_exception import DocumentPortalException
 
 from langchain_groq import ChatGroq
