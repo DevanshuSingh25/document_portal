@@ -78,7 +78,11 @@ class ModelLoader:
         try:
             log.info("Loading embedding model...")
             model_name = self.config["embedding_model"]["model_name"]
-            return HuggingFaceEndpointEmbeddings(model=model_name)
+            hf_token = self.api_key_mgr.get("HUGGINGFACEHUB_API_TOKEN")
+            return HuggingFaceEndpointEmbeddings(
+                model=model_name,
+                huggingfacehub_api_token=hf_token
+            )
         except Exception as e:
             log.error("Failed to load embedding model", error=str(e))
             raise DocumentPortalException("Failed to load embedding model", sys)
