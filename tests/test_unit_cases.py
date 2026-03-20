@@ -9,7 +9,7 @@ client = TestClient(app)
 def test_home():
     response = client.get("/")
     assert response.status_code == 200
-    assert "Document Portal" in response.text
+    assert "IntelliDoc AI" in response.text
 
 
 # 2. Analyze - PDF
