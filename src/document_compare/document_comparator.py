@@ -21,8 +21,8 @@ from prompt.prompt_library import PROMPT_REGISTRY
 from model.models import PromptType
 
 
-MAX_EXTRACT_CHARS = 10_000   # chars sent per doc in extraction pass
-MAX_COMPARE_CHARS = 12_000   # chars of combined extracted facts for compare pass
+MAX_EXTRACT_CHARS = 4000     # chars sent per doc in extraction pass
+MAX_COMPARE_CHARS = 8000     # chars of combined extracted facts for compare pass
 
 
 class DocumentComparatorLLM:

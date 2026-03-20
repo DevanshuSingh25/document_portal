@@ -11,9 +11,8 @@ from prompt.prompt_library import PROMPT_REGISTRY
 EXPECTED_KEYS = {"Title", "Author", "DateCreated", "LastModifiedDate",
                  "Publisher", "Language", "PageCount", "SentimentTone", "Summary"}
 
-# Max characters sent to the LLM per chunk — 70B has a large context but
-# sending cleaner, focused text gives better results than raw noise.
-MAX_CHUNK_CHARS = 12_000
+# Max characters sent to the LLM per chunk
+MAX_CHUNK_CHARS = 4000
 
 
 def _clean_text(text: str) -> str:
