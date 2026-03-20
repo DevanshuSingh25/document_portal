@@ -88,39 +88,55 @@ class ModelLoader:
             raise DocumentPortalException("Failed to load embedding model", sys)
 
 
-    def load_llm(self):
-        """
-        load and return the LLM.
-        """
-
+    def _base_llm_config(self):
+        """Return (provider, model_name, temperature, max_tokens, api_key) from config."""
         llm_block = self.config["llm"]
-        log.info("Loading LLM model...")
-        
         provider_key = os.getenv("LLM_PROVIDER", "groq")
         if provider_key not in llm_block:
-            log.error(f"LLM provider '{provider_key}' not found in configuration", provider_key=provider_key)
             raise ValueError(f"Provider '{provider_key}' not found in configuration")
-        
-        llm_config = llm_block[provider_key]
-        provider = llm_config.get("provider")
-        model_name = llm_config.get("model_name")
-        tempreture = llm_config.get("temperature", 0.2)
-        max_tokens = llm_config.get("max_tokens", 2048)
+        cfg = llm_block[provider_key]
+        return (
+            cfg.get("provider"),
+            cfg.get("model_name"),
+            cfg.get("temperature", 0),
+            cfg.get("max_tokens", 2048),
+            self.api_key_mgr.get("GROQ_API_KEY"),
+        )
 
-        log.info("Loading LLM", provider=provider, model_name=model_name, temperature=tempreture, max_tokens=max_tokens)
-
+    def load_llm(self):
+        """
+        Load LLM with JSON object mode forced.
+        Use for analysis tasks where the response MUST be a JSON object.
+        """
+        provider, model_name, temp, max_tok, api_key = self._base_llm_config()
+        log.info("Loading LLM (JSON mode)", provider=provider, model=model_name, temperature=temp)
         if provider == "groq":
-            llm=ChatGroq(
+            return ChatGroq(
                 model=model_name,
-                api_key=self.api_key_mgr.get("GROQ_API_KEY"),
-                temperature=tempreture
+                api_key=api_key,
+                temperature=temp,
+                max_tokens=max_tok,
+                model_kwargs={"response_format": {"type": "json_object"}},
             )
+        raise ValueError(f"Unsupported LLM provider: {provider}")
 
-            return llm
-        
-        else:
-            log.error(f"Unsupported LLM provider: {provider}", provider=provider)
-            raise ValueError(f"Unsupported LLM provider: {provider}")
+    def load_llm_text(self):
+        """
+        Load LLM without JSON mode — for comparison and chat where the
+        response may be a JSON array or free text.
+        """
+        provider, model_name, temp, max_tok, api_key = self._base_llm_config()
+        log.info("Loading LLM (text mode)", provider=provider, model=model_name, temperature=temp)
+        if provider == "groq":
+            return ChatGroq(
+                model=model_name,
+                api_key=api_key,
+                temperature=temp,
+                max_tokens=max_tok,
+            )
+        raise ValueError(f"Unsupported LLM provider: {provider}")
+
+
 
 
 

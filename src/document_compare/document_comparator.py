@@ -17,7 +17,7 @@ class DocumentComparatorLLM:
         load_dotenv()
         self.log = CustomLogger().get_logger(__name__)
         self.loader = ModelLoader()
-        self.llm = self.loader.load_llm()
+        self.llm = self.loader.load_llm_text()  # text mode: comparison uses JSON arrays, not objects
         # Use plain string output — avoids OutputFixingParser silently producing []
         self.prompt = PROMPT_REGISTRY[PromptType.DOCUMENT_COMPARISON.value]
         self.chain = self.prompt | self.llm | StrOutputParser()

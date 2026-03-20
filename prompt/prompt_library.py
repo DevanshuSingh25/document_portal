@@ -1,17 +1,65 @@
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
-# Prompt for document analysis
+
+# ================= DOCUMENT ANALYSIS PROMPT =================
 document_analysis_prompt = ChatPromptTemplate.from_template("""
-You are a highly capable assistant trained to analyze and summarize documents.
-Return ONLY valid JSON matching the exact schema below.
+You are an expert document analysis AI. Your task is to extract structured metadata from the given document text.
 
-{format_instructions}
+CRITICAL INSTRUCTIONS (STRICTLY FOLLOW):
+- You MUST return ONLY valid JSON. Nothing else.
+- Do NOT include explanations, reasoning, notes, markdown, or code blocks.
+- Do NOT include thinking tags like <think> or any hidden reasoning.
+- Every field must be present.
+- If a value is missing or unclear, return "Not Available".
+- If a value is not explicitly present in the text, return "Not Available". Do NOT infer or guess.
 
-Analyze this document:
+OUTPUT FORMAT — return exactly this JSON structure:
+{{
+  "Title": "<document title or 'Not Available'>",
+  "Author": "<all authors comma-separated, or 'Not Available'>",
+  "DateCreated": "<creation date or 'Not Available'>",
+  "LastModifiedDate": "<last modified date or 'Not Available'>",
+  "Publisher": "<publisher name or 'Not Available'>",
+  "Language": "<language name>",
+  "PageCount": "<number as string, or 'Not Available'>",
+  "SentimentTone": "<exactly one of: Positive | Negative | Neutral>",
+  "Summary": [
+    "<bullet sentence 1>",
+    "<bullet sentence 2>",
+    "<bullet sentence 3>"
+  ]
+}}
+
+GUIDELINES:
+- Summary must have 3 to 5 concise bullet sentences.
+- Each sentence must be under 25 words.
+- Each bullet must capture a key idea or contribution.
+- Avoid generic phrases like "This document discusses...".
+- SentimentTone must be exactly one of: Positive, Negative, Neutral.
+
+FIELD EXTRACTION PRIORITY:
+- Title and Author are highest priority — extract if present anywhere.
+- Dates may appear in headers, footers, or references.
+- Publisher may appear as conference, journal, or organization name.
+
+IMPORTANT:
+- This may be a chunk of a larger document.
+- Extract ONLY from the provided text.
+- Do NOT assume missing context.
+
+FINAL CHECK (MANDATORY):
+- Ensure output is valid JSON
+- Ensure all fields are present
+- Ensure no extra text is included
+- Ensure Summary has 3–5 items
+- Ensure SentimentTone is valid
+
+DOCUMENT TEXT:
 {document_text}
 """)
 
-# Prompt for document comparison
+
+# ================= DOCUMENT COMPARISON PROMPT =================
 document_comparison_prompt = ChatPromptTemplate.from_template("""
 You are a precise document comparison assistant.
 
@@ -20,48 +68,63 @@ You will be given content from TWO documents:
 - The second document is labelled <<ACTUAL DOCUMENT>>
 
 YOUR TASK:
-1. Carefully compare the content of the REFERENCE document against the ACTUAL document.
-2. Identify every meaningful difference — changed values, added text, removed text, reworded sentences, etc.
-3. For each difference, identify the section/topic it belongs to.
-4. If the documents are identical or have NO meaningful differences, you MUST output an empty JSON array: []
+1. Carefully compare the REFERENCE document with the ACTUAL document.
+2. Identify ALL meaningful differences:
+   - Changed values
+   - Added content
+   - Removed content
+   - Reworded sentences
+3. Group differences by topic or logical section.
 
 STRICT RULES:
-- Do NOT mention "PDF", "page number", or any format-specific term. Refer to document sections by topic or heading.
-- Do NOT make up differences that do not exist in the provided text.
-- Do NOT include differences that are only whitespace or formatting changes.
-- Output ONLY valid JSON — no markdown fences, no explanations outside the JSON.
+- Output ONLY valid JSON (no markdown, no explanations).
+- If there are NO meaningful differences, return: []
+- Do NOT mention page numbers, formatting, or file types (e.g., PDF).
+- Do NOT include whitespace-only differences.
+- Do NOT hallucinate or invent differences.
 
-Input documents:
+OUTPUT FORMAT:
+{format_instructions}
 
+INPUT DOCUMENTS:
 {combined_docs}
 
-{format_instruction}
+FINAL CHECK:
+- Ensure output is valid JSON
+- Ensure no extra text outside JSON
 """)
 
 
-# Prompt for contextual question rewriting
+# ================= CONTEXTUAL QUESTION REWRITE =================
 contextualize_question_prompt = ChatPromptTemplate.from_messages([
     ("system", (
-        "Given a conversation history and the most recent user query, rewrite the query as a standalone question "
-        "that makes sense without relying on the previous context. Do not provide an answer—only reformulate the "
-        "question if necessary; otherwise, return it unchanged."
+        "Given a conversation history and the latest user query, rewrite the query into a standalone question. "
+        "The rewritten question must be understandable without previous context. "
+        "Do NOT answer the question — only rewrite it if necessary. "
+        "If it is already clear, return it unchanged."
     )),
     MessagesPlaceholder("chat_history"),
     ("human", "{input}"),
 ])
 
-# Prompt for answering based on context
+
+# ================= CONTEXT-BASED QA =================
 context_qa_prompt = ChatPromptTemplate.from_messages([
     ("system", (
-        "You are an assistant designed to answer questions using the provided context. Rely only on the retrieved "
-        "information to form your response. If the answer is not found in the context, respond with 'I don't know.' "
-        "Keep your answer concise and no longer than three sentences.\n\n{context}"
+        "You are an AI assistant answering questions based ONLY on the provided context.\n\n"
+        "RULES:\n"
+        "- Use only the given context to answer.\n"
+        "- If the answer is not present, respond with: 'I don't know.'\n"
+        "- Do NOT hallucinate or guess.\n"
+        "- Keep the answer concise (max 3 sentences).\n\n"
+        "CONTEXT:\n{context}"
     )),
     MessagesPlaceholder("chat_history"),
     ("human", "{input}"),
 ])
 
-# Central dictionary to register prompts
+
+# ================= PROMPT REGISTRY =================
 PROMPT_REGISTRY = {
     "document_analysis": document_analysis_prompt,
     "document_comparison": document_comparison_prompt,

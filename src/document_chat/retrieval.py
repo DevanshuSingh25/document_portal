@@ -126,7 +126,7 @@ class ConversationalRAG:
 
     def _load_llm(self):
         try:
-            llm = ModelLoader().load_llm()
+            llm = ModelLoader().load_llm_text()  # chat uses free text, not JSON object mode
             if not llm:
                 raise ValueError("LLM could not be loaded")
             self.log.info("LLM loaded successfully", session_id=self.session_id)
