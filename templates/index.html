@@ -47,7 +47,7 @@
         </div>
         <div id="an-result" class="result-block">
           <h3>Result</h3>
-          <pre class="code" id="an-json">Waiting for analysis…</pre>
+          <div class="code" id="an-json">Waiting for analysis…</div>
         </div>
       </div>
     </section>
@@ -272,8 +272,30 @@
         return;
       }
       const json = await res.json();
-      out.textContent = JSON.stringify(json, null, 2);
+      
+      let summaryText = "";
+      if (json.Summary && Array.isArray(json.Summary)) {
+        summaryText = json.Summary.map(s => `  - ${s}`).join("\n");
+      } else {
+        summaryText = "  - " + (json.Summary || "Not Available");
+      }
+
+      const textOutput = `Title - ${json.Title || 'Not Available'}
+Author - ${json.Author || 'Not Available'}
+Date Created - ${json.DateCreated || 'Not Available'}
+Last Modified - ${json.LastModifiedDate || 'Not Available'}
+Publisher - ${json.Publisher || 'Not Available'}
+Language - ${json.Language || 'Not Available'}
+Page Count - ${json.PageCount || 'Not Available'}
+Sentiment Tone - ${json.SentimentTone || 'Not Available'}
+
+Summary -
+${summaryText}`;
+
+      out.classList.add("code");
+      out.textContent = textOutput;
     } catch (e) {
+      out.classList.add("code");
       if (e.name === "AbortError") { out.textContent = "⏹ Request cancelled."; }
       else { out.textContent = "Error: " + (e.message || e); }
     } finally { endRequest("analyze", "btn-stop-analyze"); }

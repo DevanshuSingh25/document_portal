@@ -74,7 +74,7 @@ YOUR TASK:
    - Added content
    - Removed content
    - Reworded sentences
-3. Group differences by topic or logical section.
+3. Group differences EXACTLY by the heading they appear under. Do NOT invent logical section names.
 
 STRICT RULES:
 - Output ONLY valid JSON (no markdown, no explanations).
@@ -83,17 +83,43 @@ STRICT RULES:
 - Do NOT include whitespace-only differences.
 - Do NOT hallucinate or invent differences.
 
-OUTPUT FORMAT:
-{format_instructions}
+OUTPUT FORMAT (return ONLY this JSON array, no other text):
+[
+  {{"Section": "<exact heading from document>", "Changes": "<what changed, added, or removed>"}},
+  ...
+]
+
+If there are NO meaningful differences, return exactly: []
 
 INPUT DOCUMENTS:
 {combined_docs}
 
 FINAL CHECK:
-- Ensure output is valid JSON
-- Ensure no extra text outside JSON
+- Ensure output is valid JSON array (not object)
+- Ensure no extra text outside the JSON array
 """)
 
+
+# ================= DOCUMENT EXTRACTION PROMPT (Map-Reduce pass 1) =================
+document_extraction_prompt = ChatPromptTemplate.from_template("""You are a precise document content extractor.
+
+Extract ALL key facts, values, and statements from the document below into a structured list.
+Each item must be a short, standalone factual statement (under 20 words).
+
+RULES:
+- Include every specific value, metric, name, date, decision, or claim you find.
+- Group items EXACTLY by the heading they appear under in the document.
+- Do NOT invent or guess topic names (like "Metrics" or "Results"). Only use explicit headings.
+- Do NOT summarize or paraphrase — preserve exact values and terms.
+- Return ONLY a JSON object with heading names as keys and arrays of fact strings as values.
+- If text appears before any heading or has no heading, use "General Text".
+
+EXAMPLE OUTPUT:
+{{"Introduction": ["Project started in 2021", "Budget: $5M"], "System Architecture": ["Model: ResNet50", "Epochs: 100"]}}
+
+DOCUMENT ({role}):
+{document_text}
+""")
 
 # ================= CONTEXTUAL QUESTION REWRITE =================
 contextualize_question_prompt = ChatPromptTemplate.from_messages([
@@ -128,6 +154,7 @@ context_qa_prompt = ChatPromptTemplate.from_messages([
 PROMPT_REGISTRY = {
     "document_analysis": document_analysis_prompt,
     "document_comparison": document_comparison_prompt,
+    "document_extraction": document_extraction_prompt,
     "contextualize_question": contextualize_question_prompt,
     "context_qa": context_qa_prompt,
-}
+}

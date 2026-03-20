@@ -148,6 +148,11 @@ class DocumentAnalyzer:
                         self.log.warning("analyze_document: JSON extraction fell back to raw", chunk_number=i + 1)
                     results.append(parsed)
                 except Exception as chunk_err:
+                    err_str = str(chunk_err).lower()
+                    if "429" in err_str or "rate limit" in err_str:
+                        self.log.error("analyze_document: rate limit hit, failing immediately", chunk_number=i + 1)
+                        raise  # Instantly bubble up rate limits to trigger 429 in API
+
                     self.log.error("analyze_document: chunk failed — skipping", chunk_number=i + 1, error=str(chunk_err))
                     continue
 
