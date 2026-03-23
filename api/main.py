@@ -93,7 +93,7 @@ async def _run_with_cancel(request: Request, fn, *args, label: str = "task"):
 
 @app.get("/", response_class=HTMLResponse)
 async def serve_ui(request: Request):
-    resp = templates.TemplateResponse("index.html", {"request": request})
+    resp = templates.TemplateResponse(request=request, name="index.html", context={"request": request})
     resp.headers["Cache-Control"] = "no-store"
     return resp
 
