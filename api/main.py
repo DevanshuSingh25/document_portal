@@ -97,7 +97,7 @@ async def serve_ui(request: Request):
     resp.headers["Cache-Control"] = "no-store"
     return resp
 
-@app.get("/health")
+@app.api_route("/health", methods=["GET", "HEAD"])
 def health() -> Dict[str, str]:
     return {"status": "ok", "service": "document-portal"}
 
