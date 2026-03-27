@@ -14,7 +14,8 @@ IntelliDoc AI is a full-stack, AI-powered document processing portal. It provide
 ## 🏗️ System Architecture
 
 
-![System Architecture Diagram](<img width="3254" height="2434" alt="sys arch" src="https://github.com/user-attachments/assets/3d2da758-77c9-472d-8422-4d6fa71ad7d3" />)
+![System Architecture Diagram]
+<img width="3254" height="2434" alt="sys arch" src="https://github.com/user-attachments/assets/3d2da758-77c9-472d-8422-4d6fa71ad7d3" />
 
 ### Architecture Explanation
 The architecture follows a clean, modern layered approach:
